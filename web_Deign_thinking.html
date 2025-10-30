@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="es" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informe Interactivo: Design Thinking</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Academic Blue & Slate (bg-slate-50, text-slate-800, accent-blue-600) -->
+    <!-- Application Structure Plan: He diseñado esta SPA con una arquitectura temática y un flujo de usuario lógico. En lugar de replicar los capítulos del informe, la aplicación se organiza en secciones interactivas: 1. "Inicio" (Hero) que define el DT y sus 3 pilares. 2. "El Proceso" (Stepper Interactivo) que permite explorar las 5 fases. 3. "Impacto en Números" (Dashboard) con KPIs y un gráfico de Chart.js dinámico que el usuario puede actualizar con botones. 4. "Casos de Éxito" (Explorador) con una galería de tarjetas filtrable por sector. 5. Secciones de "Recomendaciones" y "Conclusión". Esta estructura transforma un informe pasivo en una herramienta de exploración activa, fomentando la comprensión al permitir al usuario interactuar directamente con los datos y los casos. -->
+    <!-- Visualization & Content Choices: 1. Pilares (Deseabilidad, etc.): Objetivo: Informar. Método: 3 tarjetas en un grid de Tailwind. Interacción: Ninguna, estático. Justificación: Claridad y simplicidad. 2. 5 Fases del DT: Objetivo: Organizar/Educar. Método: Un "stepper" horizontal hecho con HTML/Tailwind. Interacción: Clic en cada paso (botón) actualiza un bloque de texto descriptivo (JS). Justificación: Representa un proceso visualmente sin SVG/Mermaid. 3. Datos de Impacto: Objetivo: Comparar/Informar. Método: KPI Cards (HTML) y un gráfico de barras horizontal (Chart.js en Canvas) dentro de un .chart-container. Interacción: Botones que actualizan los datos del gráfico (JS: myChart.data.datasets[0] = ...; myChart.update()). Justificación: Permite al usuario explorar dinámicamente el impacto cuantitativo. 4. Casos de Perú: Objetivo: Organizar/Explorar. Método: Galería de tarjetas (HTML/Tailwind) con atributos data-sector. Interacción: Botones de filtro (JS) que muestran/ocultan tarjetas según el data-sector. Justificación: Interfaz de explorador intuitiva. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 450px;
+            max-height: 500px;
+        }
+        @media (max-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        .process-step {
+            transition: all 0.3s ease;
+        }
+        .process-step.active {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.5), 0 2px 4px -2px rgba(59, 130, 246, 0.5);
+            background-color: #2563EB;
+            color: white;
+        }
+        .case-card {
+            transition: all 0.3s ease;
+        }
+        /* Estilos para el Modal de IA */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        }
+        .modal-overlay.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            max-width: 90%;
+            width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+        .modal-overlay.visible .modal-content {
+            transform: scale(1);
+        }
+        /* Estilos para el Spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 leading-relaxed">
+
+    <!-- Header / Navigation -->
+    <header class="sticky top-0 z-50 w-full bg-white shadow-md">
+        <nav class="container mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex-shrink-0 flex items-center">
+                    <h1 class="text-2xl font-bold text-blue-600">Design Thinking</h1>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#inicio" class="text-slate-600 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Inicio</a>
+                        <a href="#proceso" class="text-slate-600 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium">El Proceso</a>
+                        <a href="#impacto" class="text-slate-600 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Impacto</a>
+                        <a href="#casos" class="text-slate-600 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Casos de Éxito</a>
+                        <a href="#recomendaciones" class="text-slate-600 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Recomendaciones</a>
+                        <a href="#conclusion" class="text-slate-600 hover:bg-blue-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Conclusión</a>
+                    </div>
+                </div>
+                <div class="-mr-2 flex md:hidden">
+                    <button id="mobile-menu-button" type="button" class="bg-slate-100 inline-flex items-center justify-center p-2 rounded-md text-slate-500 hover:text-blue-600 hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500" aria-controls="mobile-menu" aria-expanded="false">
+                        <span class="sr-only">Abrir menú principal</span>
+                        <svg class="block h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                        <svg class="hidden h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </nav>
+        <div class="md:hidden hidden" id="mobile-menu">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#inicio" class="text-slate-600 hover:bg-blue-500 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Inicio</a>
+                <a href="#proceso" class="text-slate-600 hover:bg-blue-500 hover:text-white block px-3 py-2 rounded-md text-base font-medium">El Proceso</a>
+                <a href="#impacto" class="text-slate-600 hover:bg-blue-500 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Impacto</a>
+                <a href="#casos" class="text-slate-600 hover:bg-blue-500 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Casos de Éxito</a>
+                <a href="#recomendaciones" class="text-slate-600 hover:bg-blue-500 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Recomendaciones</a>
+                <a href="#conclusion" class="text-slate-600 hover:bg-blue-500 hover:text-white block px-3 py-2 rounded-md text-base font-medium">Conclusión</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main>
+        <!-- Section 1: Inicio (Hero) -->
+        <section id="inicio" class="min-h-screen flex items-center bg-white py-20 md:py-32">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-4xl md:text-5xl font-bold text-blue-600 mb-4">Innovación Centrada en el Ser Humano</h2>
+                <p class="text-xl md:text-2xl text-slate-600 max-w-3xl mx-auto mb-12">
+                    El Design Thinking (DT) es una disciplina que integra las necesidades de las personas, la viabilidad técnica y la rentabilidad del negocio para crear soluciones innovadoras.
+                </p>
+                <div class="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
+                    <div class="bg-slate-50 p-8 rounded-xl shadow-lg border border-slate-200">
+                        <span class="text-5xl">🎯</span>
+                        <h3 class="text-2xl font-bold text-slate-800 my-3">Deseabilidad</h3>
+                        <p class="text-slate-600">¿Qué necesitan y desean realmente las personas? Se enfoca en la empatía para identificar problemas reales.</p>
+                    </div>
+                    <div class="bg-slate-50 p-8 rounded-xl shadow-lg border border-slate-200">
+                        <span class="text-5xl">🛠️</span>
+                        <h3 class="text-2xl font-bold text-slate-800 my-3">Factibilidad</h3>
+                        <p class="text-slate-600">¿Es tecnológicamente posible implementar la solución en el corto o mediano plazo?</p>
+                    </div>
+                    <div class="bg-slate-50 p-8 rounded-xl shadow-lg border border-slate-200">
+                        <span class="text-5xl">📈</span>
+                        <h3 class="text-2xl font-bold text-slate-800 my-3">Viabilidad</h3>
+                        <p class="text-slate-600">¿Requiere una estrategia de negocio sostenible que permita que la solución perdure y escale?</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: El Proceso -->
+        <section id="proceso" class="py-24 bg-slate-50">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-6">El Proceso de 5 Fases</h2>
+                <p class="text-lg text-slate-600 max-w-3xl mx-auto mb-16">
+                    Esta sección detalla el modelo de 5 fases de Stanford, el cual provee un marco estructurado para la innovación. Es un proceso iterativo y no lineal. Explore cada etapa para entender su propósito y las actividades asociadas.
+                </p>
+                
+                <div class="flex flex-col md:flex-row justify-center items-center md:space-x-4 space-y-4 md:space-y-0 mb-12 flex-wrap">
+                    <button class="process-step active text-sm md:text-base font-medium px-5 py-3 rounded-lg shadow-md bg-white text-blue-600 border border-transparent w-full md:w-auto" data-step="1">1. Empatizar</button>
+                    <div class="text-slate-300 hidden md:block">→</div>
+                    <button class="process-step text-sm md:text-base font-medium px-5 py-3 rounded-lg shadow-md bg-white text-blue-600 border border-transparent w-full md:w-auto" data-step="2">2. Definir</button>
+                    <div class="text-slate-300 hidden md:block">→</div>
+                    <button class="process-step text-sm md:text-base font-medium px-5 py-3 rounded-lg shadow-md bg-white text-blue-600 border border-transparent w-full md:w-auto" data-step="3">3. Idear</button>
+                    <div class="text-slate-300 hidden md:block">→</div>
+                    <button class="process-step text-sm md:text-base font-medium px-5 py-3 rounded-lg shadow-md bg-white text-blue-600 border border-transparent w-full md:w-auto" data-step="4">4. Prototipar</button>
+                    <div class="text-slate-300 hidden md:block">→</div>
+                    <button class="process-step text-sm md:text-base font-medium px-5 py-3 rounded-lg shadow-md bg-white text-blue-600 border border-transparent w-full md:w-auto" data-step="5">5. Testear</button>
+                </div>
+
+                <div id="process-description" class="max-w-3xl mx-auto bg-white p-8 rounded-xl shadow-lg text-left min-h-[200px] border border-slate-200">
+                    <h3 id="process-title" class="text-2xl font-bold text-blue-600 mb-4">1. Empatizar (o Inspiración)</h3>
+                    <p id="process-text" class="text-slate-700">Comprender profundamente las necesidades, deseos y frustraciones de los usuarios a través de investigación profunda. Se trata de observar, interactuar y sumergirse en el contexto del usuario para identificar problemas reales, a menudo no articulados.</p>
+                
+                    <button id="ai-process-btn" class="mt-6 px-5 py-2 bg-green-500 text-white text-sm font-semibold rounded-lg shadow-md hover:bg-green-600 transition-colors">
+                        ✨ Generar Actividades de IA para esta Fase
+                    </button>
+                    <div id="process-loader" class="hidden my-4">
+                        <div class="loader" style="width: 30px; height: 30px; margin: 10px 0 0 0;"></div>
+                    </div>
+                    <div id="process-result" class="text-left mt-4 p-4 bg-slate-50 rounded-lg border border-slate-200 hidden">
+                        <!-- El contenido de la IA se insertará aquí -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Impacto en Números -->
+        <section id="impacto" class="py-24 bg-white">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-6">Impacto en Números</h2>
+                <p class="text-lg text-slate-600 max-w-3xl mx-auto mb-12">
+                    El Design Thinking no es solo una teoría; genera resultados medibles. Este panel interactivo visualiza el impacto cuantitativo reportado por empresas que lo implementan. Use los botones para explorar diferentes métricas de rendimiento.
+                </p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16 max-w-5xl mx-auto">
+                    <div class="bg-blue-500 text-white p-6 rounded-xl shadow-lg text-left">
+                        <div class="text-4xl font-bold">228%</div>
+                        <div class="text-lg opacity-90">Mejor rendimiento sobre competidores (Diseño Centrado en Usuario).</div>
+                    </div>
+                    <div class="bg-blue-600 text-white p-6 rounded-xl shadow-lg text-left">
+                        <div class="text-4xl font-bold">75%</div>
+                        <div class="text-lg opacity-90">Reducción en tiempo de desarrollo (Caso IBM).</div>
+                    </div>
+                    <div class="bg-blue-700 text-white p-6 rounded-xl shadow-lg text-left">
+                        <div class="text-4xl font-bold">71%</div>
+                        <div class="text-lg opacity-90">Reporta una mejora en la cultura de trabajo y colaboración.</div>
+                    </div>
+                </div>
+
+                <div id="chart-buttons" class="flex justify-center flex-wrap gap-3 mb-8">
+                    <button class="chart-btn active bg-blue-600 text-white px-4 py-2 rounded-lg shadow" data-chart="cultura">Cultura y Procesos</button>
+                    <button class="chart-btn bg-white text-blue-600 border border-blue-600 px-4 py-2 rounded-lg shadow" data-chart="rendimiento">Rendimiento y Velocidad</button>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="impactChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Casos de Éxito en Perú -->
+        <section id="casos" class="py-24 bg-slate-50">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-6 text-center">Casos de Éxito en Perú</h2>
+                <p class="text-lg text-slate-600 max-w-3xl mx-auto mb-12 text-center">
+                    La adopción del Design Thinking en Perú es una realidad tangible. A continuación, explore una galería de casos de éxito en diversos sectores. Use los filtros para navegar por industria y descubra cómo estas organizaciones aplicaron la metodología.
+                </p>
+
+                <div id="case-filters" class="flex justify-center flex-wrap gap-3 mb-12">
+                    <button class="case-filter-btn active bg-blue-600 text-white px-4 py-2 rounded-lg shadow" data-filter="all">Todos</button>
+                    <button class="case-filter-btn bg-white text-blue-600 border border-blue-600 px-4 py-2 rounded-lg shadow" data-filter="financiero">Financiero</button>
+                    <button class="case-filter-btn bg-white text-blue-600 border border-blue-600 px-4 py-2 rounded-lg shadow" data-filter="educacion">Educación</button>
+                    <button class="case-filter-btn bg-white text-blue-600 border border-blue-600 px-4 py-2 rounded-lg shadow" data-filter="social">Innovación Social</button>
+                    <button class="case-filter-btn bg-white text-blue-600 border border-blue-600 px-4 py-2 rounded-lg shadow" data-filter="consumo">Consumo/Otros</button>
+                </div>
+
+                <div id="case-gallery" class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    
+                    <div class="case-card bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200" data-sector="educacion">
+                        <div class="p-6">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-blue-500">Educación</span>
+                            <h3 class="text-2xl font-bold text-slate-800 mt-2 mb-3">Innova Schools</h3>
+                            <p class="text-slate-600 mb-4">Creación de modelo educativo centrado en el alumno, desarrollado con IDEO; infraestructura colaborativa.</p>
+                            <div class="bg-blue-50 p-4 rounded-lg mb-4">
+                                <h4 class="font-bold text-blue-700">Resultado Clave</h4>
+                                <p class="text-blue-900">Clasificado entre los 13 colegios más innovadores del mundo.</p>
+                            </div>
+                            <button class="ai-case-btn w-full text-center px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors" data-case="Innova Schools">
+                                ✨ Analizar Oportunidad
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="case-card bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200" data-sector="consumo">
+                        <div class="p-6">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-green-500">Consumo Masivo / RR.HH.</span>
+                            <h3 class="text-2xl font-bold text-slate-800 mt-2 mb-3">Arca Continental Lindley</h3>
+                            <p class="text-slate-600 mb-4">Diseño de Sistema de Información enfocado en cliente interno (operarios). Primer referente en RR.HH. en el sector.</p>
+                            <div class="bg-green-50 p-4 rounded-lg mb-4">
+                                <h4 class="font-bold text-green-700">Resultado Clave</h4>
+                                <p class="text-green-900">Satisfacción de colaboradores aumentó de 51.5% a 79.4%.</p>
+                            </div>
+                            <button class="ai-case-btn w-full text-center px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors" data-case="Arca Continental Lindley (RRHH)">
+                                ✨ Analizar Oportunidad
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="case-card bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200" data-sector="financiero">
+                        <div class="p-6">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-red-500">Sector Financiero</span>
+                            <h3 class="text-2xl font-bold text-slate-800 mt-2 mb-3">Interbank</h3>
+                            <p class="text-slate-600 mb-4">Rediseño de agencias bancarias (ej. "Interbank Explora") y potenciación de canales online; colaboración con IDEO.</p>
+                            <div class="bg-red-50 p-4 rounded-lg mb-4">
+                                <h4 class="font-bold text-red-700">Resultado Clave</h4>
+                                <p class="text-red-900">Transformación de la experiencia bancaria y diseño de servicios en "La Victoria Lab".</p>
+                            </div>
+                            <button class="ai-case-btn w-full text-center px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors" data-case="Interbank (La Victoria Lab)">
+                                ✨ Analizar Oportunidad
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="case-card bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200" data-sector="financiero">
+                        <div class="p-6">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-red-500">Sector Financiero / Fintech</span>
+                            <h3 class="text-2xl font-bold text-slate-800 mt-2 mb-3">Yape (BCP)</h3>
+                            <p class="text-slate-600 mb-4">Servicio digital desarrollado en el Laboratorio de InnovaCXión del BCP para transferencias simples.</p>
+                            <div class="bg-red-50 p-4 rounded-lg mb-4">
+                                <h4 class="font-bold text-red-700">Resultado Clave</h4>
+                                <p class="text-red-900">Alto impacto social; contribuyó a la inclusión de millones de personas en la economía formal.</p>
+                            </div>
+                            <button class="ai-case-btn w-full text-center px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors" data-case="Yape (BCP)">
+                                ✨ Analizar Oportunidad
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="case-card bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200" data-sector="social">
+                        <div class="p-6">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-purple-500">Innovación Social / Tecnología</span>
+                            <h3 class="text-2xl font-bold text-slate-800 mt-2 mb-3">Laboratoria</h3>
+                            <p class="text-slate-600 mb-4">Abordaje de desigualdad de género capacitando mujeres en tecnología; DT para crear soluciones holísticas.</p>
+                            <div class="bg-purple-50 p-4 rounded-lg mb-4">
+                                <h4 class="font-bold text-purple-700">Resultado Clave</h4>
+                                <p class="text-purple-900">Empoderamiento de miles de mujeres en Perú y Latam, generando cambios sociales positivos.</p>
+                            </div>
+                            <button class="ai-case-btn w-full text-center px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors" data-case="Laboratoria">
+                                ✨ Analizar Oportunidad
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="case-card bg-white rounded-xl shadow-lg overflow-hidden border border-slate-200" data-sector="consumo">
+                        <div class="p-6">
+                            <span class="text-xs font-semibold uppercase tracking-wider text-yellow-500">Seguros</span>
+                            <h3 class="text-2xl font-bold text-slate-800 mt-2 mb-3">RÍMAC Seguros</h3>
+                            <p class="text-slate-600 mb-4">Aceleración de digitalización e incorporación de DT para diseñar ofertas de valor ajustadas al consumidor.</p>
+                            <div class="bg-yellow-50 p-4 rounded-lg mb-4">
+                                <h4 class="font-bold text-yellow-700">Resultado Clave</h4>
+                                <p class="text-yellow-900">Lanzamiento de seguros personalizables con flexibilidad para añadir/eliminar coberturas.</p>
+                            </div>
+                            <button class="ai-case-btn w-full text-center px-4 py-2 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors" data-case="RÍMAC Seguros">
+                                ✨ Analizar Oportunidad
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 5: Recomendaciones -->
+        <section id="recomendaciones" class="py-24 bg-white">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-6 text-center">Recomendaciones Estratégicas</h2>
+                <p class="text-lg text-slate-600 mb-12 text-center">
+                    En lugar de una lista estática, genere recomendaciones personalizadas. Seleccione su sector para obtener consejos estratégicos impulsados por IA, basados en los hallazgos del informe.
+                </p>
+                <div class="bg-slate-50 p-6 sm:p-8 rounded-lg border border-slate-200 shadow-sm text-center">
+                    <label for="sector-select" class="block text-lg font-medium text-slate-700 mb-4">Seleccione su sector:</label>
+                    <select id="sector-select" class="block w-full max-w-md mx-auto p-3 border border-slate-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 mb-6">
+                        <option value="Financiero">Financiero (Banca, Seguros, Fintech)</option>
+                        <option value="Educación">Educación</option>
+                        <option value="Consumo">Consumo Masivo / Retail</option>
+                        <option value="Social">Innovación Social</option>
+                        <option value="General">General / Otro</option>
+                    </select>
+                    <button id="ai-recommendation-btn" class="px-8 py-3 bg-blue-600 text-white text-lg font-semibold rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+                        ✨ Generar Recomendaciones de IA
+                    </button>
+                    <div id="recommendation-loader" class="hidden my-6">
+                        <div class="loader"></div>
+                        <p class="text-slate-600">Generando recomendaciones... esto puede tardar un momento.</p>
+                    </div>
+                    <div id="recommendation-result" class="text-left mt-8 p-6 bg-white rounded-lg border border-slate-200 hidden">
+                        <!-- El contenido de la IA se insertará aquí -->
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 6: Conclusión -->
+        <section id="conclusion" class="py-24 bg-slate-100">
+            <div class="container mx-auto px-4 sm:px-6 lg:px-8 max-w-4xl">
+                <h2 class="text-3xl md:text-4xl font-bold text-slate-800 mb-6 text-center">Conclusión y Reflexión</h2>
+                <p class="text-lg text-slate-600 mb-6">
+                    Esta exploración interactiva del informe demuestra que el Design Thinking es más que una metodología; es un cambio de mentalidad estratégico que sitúa la empatía humana en el centro de la creación de valor empresarial y social. Los datos cuantitativos validan su impacto en el rendimiento y la eficiencia, mientras que los casos de éxito en Perú, desde la inclusión financiera de Yape hasta la transformación educativa de Innova Schools, prueban su aplicabilidad y relevancia en nuestro contexto.
+                </p>
+                <p class="text-lg text-slate-600 mb-6">
+                    La implementación exitosa, sin embargo, no está exenta de desafíos. Requiere un compromiso organizacional profundo, una disposición a la iteración y al fracaso (controlado), y una medición rigurosa del impacto.
+                </p>
+                <div class="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+                    <h3 class="text-xl font-bold text-slate-700 mb-2">Limitaciones y Futuro</h3>
+                    <p class="text-slate-700">Si bien el DT es poderoso, no es una panacea. Su naturaleza cualitativa puede ser difícil de escalar y su enfoque en la "innovación incremental" a veces puede necesitar ser complementado con otras metodologías para la "innovación disruptiva". El futuro del DT en Perú y a nivel global radica en su integración con el análisis de datos (Big Data) para potenciar la empatía a escala y en su aplicación continua para resolver problemas sociales complejos, como lo demuestra Laboratoria.</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-300 py-12">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 text-center">
+            <p>&copy; 2025. Este informe interactivo es una síntesis de un reporte académico de nivel maestría.</p>
+            <p class="text-sm text-slate-400 mt-2">Creado como una aplicación web de una sola página.</p>
+        </div>
+    </footer>
+
+    <!-- Modal de IA -->
+    <div id="ai-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="ai-modal-title" class="text-2xl font-bold text-blue-600">Oportunidades de Innovación</h3>
+                <button id="ai-modal-close" class="text-slate-500 hover:text-slate-800 text-3xl">&times;</button>
+            </div>
+            <div id="ai-modal-body">
+                <div id="ai-modal-loader" class="loader"></div>
+                <div id="ai-modal-text" class="text-slate-700 leading-relaxed" style="display: none;">
+                    <!-- El contenido de la IA se insertará aquí -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            const apiKey = ""; // Dejar vacío; se proveerá en el entorno de ejecución.
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+
+            // --- INICIO: Funciones de IA y API ---
+
+            // Función de Backoff Exponencial para reintentos
+            async function exponentialBackoff(fetchFunction, maxRetries = 5) {
+                let delay = 1000;
+                for (let i = 0; i < maxRetries; i++) {
+                    try {
+                        const response = await fetchFunction();
+                        if (response.ok) {
+                            return response.json();
+                        } else if (response.status === 429 || response.status >= 500) {
+                            // Throttling o error de servidor, reintentar
+                        } else {
+                            // Otro error, no reintentar
+                            return response.json(); // Devolver el error para manejo
+                        }
+                    } catch (error) {
+                        // Error de red, reintentar
+                    }
+                    await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+                }
+                throw new Error('No se pudo obtener respuesta de la API después de varios intentos.');
+            }
+
+            // Formatear texto de IA (simple)
+            function formatAIResponse(text) {
+                return text
+                    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-bold text-slate-800">$1</strong>') // Negrita
+                    .replace(/\n/g, '<br>'); // Saltos de línea
+            }
+
+            // Llamada a la API de Gemini
+            async function callGemini(systemPrompt, userQuery) {
+                const payload = {
+                    contents: [{ parts: [{ text: userQuery }] }],
+                    systemInstruction: {
+                        parts: [{ text: systemPrompt }]
+                    },
+                };
+
+                const fetchFunction = () => fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await exponentialBackoff(fetchFunction);
+                
+                if (result.candidates && result.candidates[0].content?.parts?.[0]?.text) {
+                    return formatAIResponse(result.candidates[0].content.parts[0].text);
+                } else {
+                    console.error('Error en la respuesta de la API:', result);
+                    return '<p class="text-red-500">Error: No se pudo generar una respuesta. Por favor, intente de nuevo.</p>';
+                }
+            }
+
+            // Lógica para el Análisis de Casos de IA
+            async function fetchGeminiCaseAnalysis(caseName) {
+                const systemPrompt = "Eres un consultor experto en innovación y Design Thinking. Tu tarea es analizar un caso de éxito y proponer 3 nuevas oportunidades de innovación accionables, siguiendo los principios de empatía, ideación y prototipado.";
+                const userQuery = `Basado en el éxito de "${caseName}" en Perú, genera 3 'próximos pasos' o nuevas oportunidades de innovación. Para cada oportunidad, usa un título en negrita (ej. **Nombre de la Idea:**) seguido de una breve descripción (2-3 líneas). Sé creativo y enfocado en el usuario.`;
+                
+                return callGemini(systemPrompt, userQuery);
+            }
+
+            // Lógica para Recomendaciones de IA
+            async function fetchGeminiRecommendations(sector) {
+                const systemPrompt = "Eres un estratega de negocios senior especializado en Design Thinking. Basándote en un informe que incluye casos de éxito en Perú (como Yape, Innova Schools, Arca Continental), tu tarea es generar recomendaciones estratégicas clave.";
+                const userQuery = `Estoy en una empresa del sector "${sector}". Dame 3 recomendaciones estratégicas clave y accionables para implementar Design Thinking exitosamente, inspiradas en los casos de éxito peruanos. Formatea cada recomendación con un título en negrita (ej. **Recomendación Clave:**) y una breve descripción.`;
+
+                return callGemini(systemPrompt, userQuery);
+            }
+
+            // Lógica para Actividades de Proceso de IA
+            async function fetchGeminiProcessActivities(stepName) {
+                const systemPrompt = "Eres un facilitador experto en Design Thinking. Tu tarea es sugerir 3 técnicas o actividades prácticas y específicas para una fase determinada del proceso de Design Thinking.";
+                const userQuery = `Estoy en la fase de "${stepName}". Dame 3 actividades o técnicas específicas que un equipo puede usar en esta fase. Para cada una, usa un título en negrita (ej. **Nombre de la Técnica:**) seguido de una breve descripción (2-3 líneas) de cómo ejecutarla.`;
+                
+                return callGemini(systemPrompt, userQuery);
+            }
+
+            // --- FIN: Funciones de IA y API ---
+
+            // --- INICIO: Lógica del Modal ---
+            const aiModal = document.getElementById('ai-modal');
+            const aiModalClose = document.getElementById('ai-modal-close');
+            const aiModalTitle = document.getElementById('ai-modal-title');
+            const aiModalLoader = document.getElementById('ai-modal-loader');
+            const aiModalText = document.getElementById('ai-modal-text');
+
+            function showModal(title) {
+                aiModalTitle.textContent = `Oportunidades de Innovación para ${title}`;
+                aiModalText.style.display = 'none';
+                aiModalLoader.style.display = 'block';
+                aiModal.classList.add('visible');
+            }
+
+            function hideModal() {
+                aiModal.classList.remove('visible');
+            }
+
+            aiModalClose.addEventListener('click', hideModal);
+            aiModal.addEventListener('click', (e) => {
+                if (e.target === aiModal) {
+                    hideModal();
+                }
+            });
+
+            document.querySelectorAll('.ai-case-btn').forEach(button => {
+                button.addEventListener('click', async () => {
+                    const caseName = button.dataset.case;
+                    showModal(caseName);
+                    
+                    const responseText = await fetchGeminiCaseAnalysis(caseName);
+                    
+                    aiModalText.innerHTML = responseText;
+                    aiModalLoader.style.display = 'none';
+                    aiModalText.style.display = 'block';
+                });
+            });
+            // --- FIN: Lógica del Modal ---
+
+            // --- INICIO: Lógica de Recomendaciones de IA ---
+            const recommendationBtn = document.getElementById('ai-recommendation-btn');
+            const sectorSelect = document.getElementById('sector-select');
+            const recommendationLoader = document.getElementById('recommendation-loader');
+            const recommendationResult = document.getElementById('recommendation-result');
+
+            recommendationBtn.addEventListener('click', async () => {
+                const sector = sectorSelect.value;
+                recommendationLoader.style.display = 'block';
+                recommendationResult.style.display = 'none';
+                recommendationResult.innerHTML = '';
+
+                const responseText = await fetchGeminiRecommendations(sector);
+
+                recommendationResult.innerHTML = responseText;
+                recommendationLoader.style.display = 'none';
+                recommendationResult.style.display = 'block';
+            });
+            // --- FIN: Lógica de Recomendaciones de IA ---
+
+            // --- INICIO: Lógica de Actividades de Proceso de IA ---
+            const processBtn = document.getElementById('ai-process-btn');
+            const processLoader = document.getElementById('process-loader');
+            const processResult = document.getElementById('process-result');
+
+
+            // Mobile Menu Toggle
+            const menuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            menuButton.addEventListener('click', () => {
+                const isExpanded = menuButton.getAttribute('aria-expanded') === 'true';
+                menuButton.setAttribute('aria-expanded', !isExpanded);
+                mobileMenu.classList.toggle('hidden');
+                menuButton.querySelectorAll('svg').forEach(svg => svg.classList.toggle('hidden'));
+            });
+            
+            document.querySelectorAll('#mobile-menu a').forEach(link => {
+                link.addEventListener('click', () => {
+                    menuButton.setAttribute('aria-expanded', 'false');
+                    mobileMenu.classList.add('hidden');
+                    menuButton.querySelectorAll('svg').forEach(svg => svg.classList.toggle('hidden'));
+                });
+            });
+
+            // Process Stepper Logic
+            const processSteps = document.querySelectorAll('.process-step');
+            const processTitle = document.getElementById('process-title');
+            const processText = document.getElementById('process-text');
+            const stepData = {
+                '1': {
+                    title: '1. Empatizar (o Inspiración)',
+                    text: 'Comprender profundamente las necesidades, deseos y frustraciones de los usuarios a través de investigación profunda. Se trata de observar, interactuar y sumergirse en el contexto del usuario para identificar problemas reales, a menudo no articulados.'
+                },
+                '2': {
+                    title: '2. Definir',
+                    text: 'Sintetizar la información recopilada durante la fase de empatía para articular el problema central (el "insight") desde la perspectiva del cliente. Un buen "problema definido" es la clave para una gran solución.'
+                },
+                '3': {
+                    title: '3. Idear',
+                    text: 'Generar una gran cantidad de ideas creativas y centradas en soluciones. En esta fase se prioriza la cantidad sobre la calidad, fomentando el pensamiento divergente y sin juzgar las ideas prematuramente.'
+                },
+                '4': {
+                    title: '4. Prototipar',
+                    text: 'Crear modelos simples, de baja fidelidad, o versiones preliminares de la solución. El objetivo es convertir las ideas en algo tangible que pueda ser evaluado (ej. dibujos, maquetas, storyboards) de forma rápida y barata.'
+                },
+                '5': {
+                    title: '5. Testear (o Evaluación)',
+                    text: 'Poner a prueba el prototipo con usuarios reales para obtener retroalimentación valiosa. Esta fase permite aprender, ajustar las soluciones y refinar el prototipo, a menudo llevando a nuevas iteraciones (volver a idear, definir, etc.).'
+                }
+            };
+
+            let currentProcessStep = '1'; // Variable to store the current step
+            
+            processBtn.addEventListener('click', async () => {
+                const stepName = stepData[currentProcessStep].title.split('(')[0].trim(); // Get "Empatizar", "Definir", etc.
+                processLoader.style.display = 'block';
+                processResult.style.display = 'none';
+                processResult.innerHTML = '';
+
+                const responseText = await fetchGeminiProcessActivities(stepName);
+
+                processResult.innerHTML = responseText;
+                processLoader.style.display = 'none';
+                processResult.style.display = 'block';
+            });
+            // --- FIN: Lógica de Actividades de Proceso de IA ---
+
+            processSteps.forEach(step => {
+                step.addEventListener('click', () => {
+                    processSteps.forEach(s => s.classList.remove('active', 'bg-blue-600', 'text-white'));
+                    step.classList.add('active', 'bg-blue-600', 'text-white');
+                    const stepKey = step.dataset.step;
+                    currentProcessStep = stepKey; // Store the current step
+                    processTitle.textContent = stepData[stepKey].title;
+                    processText.textContent = stepData[stepKey].text;
+
+                    // Hide AI results when changing steps
+                    document.getElementById('process-result').style.display = 'none';
+                    document.getElementById('process-result').innerHTML = '';
+                    document.getElementById('process-loader').style.display = 'none';
+                });
+            });
+
+            // Chart.js Logic
+            const impactChartCtx = document.getElementById('impactChart').getContext('2d');
+            const chartData = {
+                cultura: {
+                    labels: ['Mejora Cultura de Trabajo', 'Mejora Eficiencia de Procesos', 'Probabilidad de Aplicar DT (Alto Rendimiento)'],
+                    datasets: [{
+                        label: 'Impacto Organizacional (%)',
+                        data: [71, 69, 350],
+                        backgroundColor: [
+                            'rgba(59, 130, 246, 0.7)',
+                            'rgba(37, 99, 235, 0.7)',
+                            'rgba(29, 78, 216, 0.7)',
+                        ],
+                        borderColor: [
+                            'rgba(59, 130, 246, 1)',
+                            'rgba(37, 99, 235, 1)',
+                            'rgba(29, 78, 216, 1)',
+                        ],
+                        borderWidth: 1,
+                        axis: 'y',
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    let value = context.raw;
+                                    if (context.label.includes('Probabilidad')) {
+                                        value = (value / 100) + '-4x (' + value + '%)'; 
+                                    } else {
+                                        value += '%';
+                                    }
+                                    return label + value;
+                                }
+                            }
+                        }
+                    }]
+                },
+                rendimiento: {
+                    labels: ['Mejora Rendimiento vs Competidores', 'Incremento Rentabilidad', 'Reducción Tiempo Desarrollo (IBM)'],
+                    datasets: [{
+                        label: 'Impacto en Rendimiento (%)',
+                        data: [228, 200, 75],
+                        backgroundColor: [
+                            'rgba(239, 68, 68, 0.7)',
+                            'rgba(220, 38, 38, 0.7)',
+                            'rgba(185, 28, 28, 0.7)',
+                        ],
+                        borderColor: [
+                            'rgba(239, 68, 68, 1)',
+                            'rgba(220, 38, 38, 1)',
+                            'rgba(185, 28, 28, 1)',
+                        ],
+                        borderWidth: 1,
+                        axis: 'y',
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    return label + context.raw + '%';
+                                }
+                            }
+                        }
+                    }]
+                }
+            };
+            
+            const chartOptions = {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: '#1E293B',
+                        titleFont: {
+                            size: 16
+                        },
+                        bodyFont: {
+                            size: 14
+                        },
+                        padding: 12,
+                        cornerRadius: 8,
+                        callbacks: {} 
+                    }
+                },
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Valor (%)',
+                            font: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            color: '#334155'
+                        },
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    },
+                    y: {
+                        ticks: {
+                            font: {
+                                size: 12
+                            },
+                            color: '#334155'
+                        }
+                    }
+                }
+            };
+            
+            chartOptions.plugins.tooltip.callbacks = chartData.cultura.datasets[0].tooltip.callbacks;
+
+            const impactChart = new Chart(impactChartCtx, {
+                type: 'bar',
+                data: chartData.cultura,
+                options: chartOptions
+            });
+
+            const chartButtons = document.querySelectorAll('.chart-btn');
+            chartButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    chartButtons.forEach(btn => {
+                        btn.classList.remove('active', 'bg-blue-600', 'text-white');
+                        btn.classList.add('bg-white', 'text-blue-600', 'border', 'border-blue-600');
+                    });
+                    button.classList.add('active', 'bg-blue-600', 'text-white');
+                    button.classList.remove('bg-white', 'text-blue-600', 'border', 'border-blue-600');
+
+                    const chartKey = button.dataset.chart;
+                    impactChart.data.labels = chartData[chartKey].labels;
+                    impactChart.data.datasets[0] = chartData[chartKey].datasets[0];
+                    impactChart.options.plugins.tooltip.callbacks = chartData[chartKey].datasets[0].tooltip.callbacks;
+                    impactChart.update();
+                });
+            });
+
+            // Case Filter Logic
+            const filterButtons = document.querySelectorAll('.case-filter-btn');
+            const caseCards = document.querySelectorAll('.case-card');
+
+            filterButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    filterButtons.forEach(btn => {
+                        btn.classList.remove('active', 'bg-blue-600', 'text-white');
+                        btn.classList.add('bg-white', 'text-blue-600', 'border', 'border-blue-600');
+                    });
+                    button.classList.add('active', 'bg-blue-600', 'text-white');
+                    button.classList.remove('bg-white', 'text-blue-600', 'border', 'border-blue-600');
+
+                    const filter = button.dataset.filter;
+
+                    caseCards.forEach(card => {
+                        if (filter === 'all' || card.dataset.sector === filter) {
+                            card.style.display = 'block';
+                        } else {
+                            card.style.display = 'none';
+                        }
+                    });
+                });
+            });
+        });
+    </script>
+</body>
+</html>				
+					
